@@ -194,38 +194,88 @@ export class CodeWriter {
   public writePop(segment: string, index: number): void {
     this.write(`// pop ${segment} ${index}`);  
     if (['local', 'argument', 'this', 'that'].includes(segment)) {
-      // pop local 5      RAM[0] = 258     RAM[258] = ?   RAM[3] = 10
-      // "Tire o valor que está no topo da pilha, descubra onde fica o local 5 (Base do LCL + 5) e guarde esse valor lá".
+      // pop local 5      M = RAM[0] = 257     topo da pilha -> RAM[256] = 80   LCL -> RAM[1] = 300      RAM[13] = 0      A = 0      B = 0
+      // "Tire o valor que está no topo da pilha, descubra onde fica o local 5 (Base do LCL + 5 -> 305) e guarde esse valor lá".
       const segmentMap: Record<string, string> = {
         'local': 'LCL',
         'argument': 'ARG',
         'this': 'THIS',
         'that': 'THAT'
       };
-      this.write(`@${index}`); //@3
-      // A = 5   |    M = RAM[A = 5] = ?    |    D = ?
+      this.write(`@${index}`); //@5
+      // A = 5  |  M = RAM[A = 5] = 0    |    D = 0   |  RAM[256]=80   |    RAM[1] = 300   |   RAM[13] = 0   |   RAM[0] = 257
       this.write('D=A');
-      // A = 5   |    M = RAM[A = 5] = ?    |    D = 5
+      // A = 5  |  M = RAM[A = 5] = 0    |    D = 5   |  RAM[256]=80   |    RAM[1] = 300   |   RAM[13] = 0   |   RAM[0] = 257 
       this.write(`@${segmentMap[segment]}`);        //@LCL
-      // A = 5   |    M = RAM[A = 5] = 258   |    D = 3
+      // A = 1. |  M = RAM[A = 1] = 300    |    D = 5   |  RAM[256]=80   |    RAM[1] = 300   |   RAM[13] = 0   |   RAM[0] = 257
       this.write('D=D+M');
-      // A = 5   |    M = RAM[A = 5] = 258   |    D = 258 + 3 = 261
+      // A = 1. |  M = RAM[A = 1] = 300    |    D = 5 + RAM[A = 1] = 5 + 300 = 305   |  RAM[256]=80   |    RAM[1] = 0  |   RAM[13] = 0   |   RAM[0] = 257
       this.write('@R13');
-      // A = 13   |    M = RAM[A = 13] = ?    |    D = 261
+      // A = 13 |  M = RAM[A = 13] = 0    |    D = 305   |  RAM[256]=80   |    RAM[1] = 0   |   RAM[13] = 0   |   RAM[0] = 257
       this.write('M=D');
-      // A = 13   |    RAM[A = 13] = 261   |    D = 261
+      // A = 13 |  M = RAM[A = 13] = 305   |    D = 305   |  RAM[256]=80   |    RAM[1] = 0   |   RAM[13] = 305   |   RAM[0] = 257
       this.write('@SP');
-      // A = 0    |    M = RAM[A = 0] = 258   |    D = 261
+      // A = 0  |  M = RAM[A = 0] = 257    |    D = 305   |  RAM[256]=80   |    RAM[1] = 0   |   RAM[13] = 305   |   RAM[0] = 257
       this.write('AM=M-1');
-      // A = RAM[A = 0] - 1 = 258 - 1 = 257    |    RAM[A = 0] = RAM[A = 0] - 1 = 258 - 1 = 257   |    D = 261
+      // A = RAM[A = 0] - 1 = 257 - 1 = 256  |  RAM[A = 0] = RAM[A = 0] - 1 = 257 - 1 = 256    |    D = 305   |  RAM[256]=80   |    RAM[1] = 0   |   RAM[13] = 305   |   RAM[0] = 256
       this.write('D=M');
-      // A = 257   |    M = RAM[A = 257] = ?    |    D = 257
+      // A = 256. |   M = RAM[A = 256] = 80   |    D = RAM[A = 256] = 80   |  RAM[256]= 80   |    RAM[1] = 0   |   RAM[13] = 305   |   RAM[0] = 256
       this.write('@R13');
-      // A = 13   |    M = RAM[A = 13] = 261   |    D = 257
+      // A = 13. |   M = RAM[A = 13] = 305   |    D = 80   |  RAM[256]=0   |    RAM[1] = 80   |   RAM[13] = 305   |   RAM[0] = 256
       this.write('A=M');
-      // A = 261   |    M = RAM[A = 261] = ?    |    D = 257
+      // A = RAM[A = 13] = 305   |   M = RAM[A = 305] = 0   |    D = 80   |  RAM[256]=80   |    RAM[1] = 0   |   RAM[13] = 305   |   RAM[0] = 256
       this.write('M=D');
-      // A = 261   |    RAM[A = 261] = 257   |    D = 257
+      // A = RAM[A = 13] = 305   |   M = RAM[A = 305] = 80   |    D = 80   |  RAM[256]=80   |    RAM[1] = 0   |   RAM[13] = 305   |   RAM[0] = 256
+      // ta salvo no local 305 o valor 80,  e ele saiu da pilha pq o stack poiter agora aponta pra o 256
+    } else if (segment === 'temp') {
+      // A = 0  |  D = 0  |  M = RAM[0] = 257  |  RAM[256]=55  |  RAM[7]=0  |  RAM[13]=0  |  RAM[0] = 257
+      // pop temp 2 -> "Tira o valor que está no topo da pilha RAM[256] e guarda-o na RAM[7]".
+      this.write(`@${5 + index}`);
+      // A = 5+2=7  |  D = 0  |  M = RAM[7] = 0  |  RAM[256]=55  |  RAM[7]=0  |  RAM[13]=0  |  RAM[0] = 257
+      this.write('D=A');
+      // A = 7  |  D = 7  |  M = RAM[7] = 0  |  RAM[256]=55  |  RAM[7]=0  |  RAM[13]=0  |  RAM[0] = 257
+      this.write('@R13');
+      // A = 13  |  D = 7  |  M = RAM[13] = 0  |  RAM[256]=55  |  RAM[7]=0  |  RAM[13]=0  |  RAM[0] = 257
+      this.write('M=D');
+      // A = 13  |  D = 7  |  M = RAM[13] = 7  |  RAM[256]=55  |  RAM[7]=0  |  RAM[13]=7  |  RAM[0] = 257
+      this.write('@SP');
+      // A = 0  |  D = 7  |  M = RAM[0] = 257  |  RAM[256]=55  |  RAM[7]=0  |  RAM[13]=7  |  RAM[0] = 257
+      this.write('AM=M-1');
+      // A = RAM[0] - 1 = 257 - 1 = 256  |  D = 7  |  RAM[0] = RAM[0] - 1 = 257 - 1 = 256  |  RAM[256]=55  |  RAM[7]=0  |  RAM[13]=7  |  RAM[0] = 256
+      this.write('D=M');
+      // A = 256  |  D = RAM[256] = 55  |  M = RAM[256] = 55  |  RAM[256]=55  |  RAM[7]=0  |  RAM[13]=7  |  RAM[0] = 256
+      this.write('@R13');
+      // A = 13  |  D =  55  |  M = RAM[13] = 7  |  RAM[256]=55  |  RAM[7]=0  |  RAM[13]=7  |  RAM[0] = 256
+      this.write('A=M');
+      // A = RAM[13] = 7  |  D = 55  |  M = RAM[7] = 0  |  RAM[256]=55  |  RAM[7]=0  |  RAM[13]=7  |  RAM[0] = 256
+      this.write('M=D');
+      // A = RAM[13] = 7  |  D = 55  |  M =RAM[7] = 55  |  RAM[256]=55  |  RAM[7]=55  |  RAM[13]=7  |  RAM[0] = 256
+      // ta salvo no local 7 o valor 55,  e ele saiu da pilha pq o stack poiter agora aponta pra o 256
+    } else if (segment === 'pointer') {
+      // A = 0  |  D = 0  |  M = RAM[0] = 257  |  RAM[256]=77  |  RAM[3]=0  |   RAM[0] = 257 | 
+      // pop this 0 -> "Tira o valor do topo da pilha, vai ver à RAM[3] onde o objeto começa, soma o índice 0, e guarda o valor nessa morada". -> @3
+      // pop that 0 -> "Tira o valor do topo da pilha, vai ver à RAM[4] onde o array começa, soma o índice 0, e guarda o valor nessa morada".  -> @4
+      this.write(`@SP`); 
+      // A = 0  |  D = 0  |  M = RAM[0] = 257  |  RAM[256]=77  |  RAM[3]=0  |  RAM[0] = 257 | 
+      this.write('AM=M-1'); 
+      // A = RAM[0] - 1 = 257 - 1 = 256  |  D = 0  |  RAM[0] = RAM[0] - 1 = 257 - 1 = 256  |  RAM[256]=77  |  RAM[3]=0  |  RAM[0] = 256 | 
+      this.write('D=M');
+      // A = 256  |  D = RAM[256] = 77  |  M = RAM[256] = 77  |  RAM[256]=77  |  RAM[3]=0  |  RAM[0] = 256 | 
+      this.write(index === 0 ? '@THIS' : '@THAT');
+      // A = 3  |  D = 77  |  M = RAM[3] = 0  |  RAM[256]=77  |  RAM[3]=0  |  RAM[0] = 256 | 
+      this.write('M=D');
+      // A = 3  |  D = 256  |  M = RAM[3] = 77  |  RAM[256]=77  |  RAM[3]=77  |  RAM[0] = 256 | 
+      // ta salvo no local 3 o valor 77,  e ele saiu da pilha pq o stack poiter agora aponta pra o 256
+    } else if (segment === 'static') {
+      this.write('@SP');
+      this.write('AM=M-1');
+      this.write('D=M');
+      this.write(`@${this.fileName}.${index}`);
+      this.write('M=D');
     }
+  }
+
+  public close(): void {
+    fs.closeSync(this.fileStream);
   }
 }
