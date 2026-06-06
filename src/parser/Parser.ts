@@ -17,7 +17,7 @@ export class Parser {
             // Em seguida, dividimos essa string em linhas usando o método split('\n'), resultando em um array de strings chamado lines onde cada elemento é uma linha de código do arquivo VM.
 
     for (const line of lines) {
-      const cleanLine = line.split('//')[0].trim();         
+      const cleanLine = (line.split('//')[0] || '').trim();        
             // Em cada linha, o split separa o código e coloca como elemento 0 do array, e depois disso, tudo que for comentário, ou seja, o que vem depois do //, é adicionado como elemento 1 do array. 
             // como foi escolhido o elemento zero, então o que é armazenado na variável cleanLine é apenas o código, sem os comentários.
             // O papel do trim é remover quaisquer espaços em branco extras no início ou no final da linha;
