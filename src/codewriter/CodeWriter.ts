@@ -8,6 +8,18 @@ export class CodeWriter {
     // Nessa variavel temos o nome do arquivo onde vamos escrever os comandos.
   private labelCounter: number = 0;
     // Nessa variavel temos o contador de labels.
+  private currentFunctionName: string = "";
+    // Nessa variável guardamos o nome da função atual. 
+    // Se estivermos dentro da função "Sys.init" e criarmos a label "LOOP", 
+    // o nome real no assembly será "Sys.init$LOOP" para evitar conflitos.
+
+  private formatLabel(label: string): string {
+    if (this.currentFunctionName !== "") {
+      return `${this.currentFunctionName}$${label}`;
+    }
+    return label; 
+      // Se não estivermos dentro de uma função, retorna apenas a label normal.
+  }
 
   constructor(outputFile: string) {
     this.fileStream = fs.openSync(outputFile, 'w');
@@ -274,6 +286,54 @@ export class CodeWriter {
       this.write('M=D');
     }
   }
+
+  public writeLabel(label: string): void {
+    const fullLabel = this.formatLabel(label);
+    this.write(`// label ${label}`);
+    this.write(`(${fullLabel})`);
+      // O comando de label (ex: (LOOP)) não gera instruções executáveis na CPU.
+      // Ele apenas informa ao Assembler: "A próxima linha de comando vai ficar salva nesta linha da ROM, associe a palavra LOOP a este número de linha".
+      // Nenhum registrador (A, D, M) ou memória (RAM) muda aqui.
+  }
+
+  public writeGoto(label: string): void {
+    const fullLabel = this.formatLabel(label);
+    this.write(`// goto ${label}`);
+      // O goto é um pulo incondicional. Ele vai para a label sem fazer perguntas.
+    this.write(`@${fullLabel}`);
+      // A = linha da ROM onde a label está  |  M = RAM[A]  |  D = o que quer que estivesse em D
+    this.write('0;JMP');
+      // A CPU lê "JMP" e joga o valor atual de A dentro do Program Counter (PC).
+      // Na próxima batida do clock, o programa continua a partir do endereço da label.
+  }
+
+  public writeIf(label: string): void {
+    const fullLabel = this.formatLabel(label);
+    this.write(`// if-goto ${label}`);
+      // if-goto precisa tirar o valor do topo da pilha. Se não for 0 (Verdadeiro), ele pula.
+      // Estado inicial suposto: RAM[0] = 257  |  RAM[256] = -1 (Verdadeiro)  |  A = ?  |  D = ?
+
+    this.write('@SP');
+      // A = 0  |  M = RAM[0] = 257  |  D = ?
+      
+    this.write('AM=M-1');
+      // A = RAM[0] - 1 = 257 - 1 = 256  |  RAM[0] = 257 - 1 = 256  |  M = RAM[256] = -1  |  D = ?
+      // Atualizamos o SP para 256 e já apontamos o A para o topo da pilha ao mesmo tempo!
+
+    this.write('D=M');
+      // A = 256  |  M = RAM[256] = -1  |  D = RAM[256] = -1
+      // Guardamos o valor de teste (-1) no bolso D. O valor saiu da pilha.
+
+    this.write(`@${fullLabel}`);
+      // A = linha da ROM onde a label está  |  M = RAM[endereço da label]  |  D = -1
+
+    this.write('D;JNE');
+      // JNE significa "Jump if Not Equal to 0" (Pule se D for diferente de zero).
+      // Como D é -1 (Verdadeiro), ele pega o valor de A (endereço da label) e joga no PC.
+      // Se D fosse 0 (Falso), a CPU ignorava este pulo e ia para a linha debaixo.
+  }
+
+  
 
   public close(): void {
     fs.closeSync(this.fileStream);
