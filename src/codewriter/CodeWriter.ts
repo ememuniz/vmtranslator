@@ -31,10 +31,34 @@ export class CodeWriter {
       // O .asm indica que vamos pegar o nome do arquivo sem a extensão.
   }
 
+  public setFileName(fileName: string): void {
+    this.fileName = fileName;
+  }
+
   private write(line: string): void {
     fs.writeSync(this.fileStream, line + '\n');
       // Escrevemos a linha no arquivo que fileStream aponta. 
       // O writeSync retorna um booleano indicando se a escrita foi bem sucedida.
+  }
+
+  public writeInit(): void {
+    this.write('// ==========================================');
+    this.write('// BOOTSTRAP CODE (Inicialização do Sistema)');
+    this.write('// ==========================================');
+
+    
+    // 1. Inicializar o Stack Pointer (SP = 256)
+    
+    this.write('@256');
+    // A = 256  |  D = ?
+    this.write('D=A');
+    // A = 256  |  D = 256
+    this.write('@SP');
+    // A = 0  |  M = RAM[0] = 0 (A memória arranca a zeros)
+    this.write('M=D');
+    // A = 0  |  M = RAM[0] = 256 (Pilha devidamente inicializada!)
+
+    this.writeCall('Sys.init', 0);
   }
 
   public writeArithmetic(command: string): void {
