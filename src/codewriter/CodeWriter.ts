@@ -333,7 +333,159 @@ export class CodeWriter {
       // Se D fosse 0 (Falso), a CPU ignorava este pulo e ia para a linha debaixo.
   }
 
-  
+  public writeFunction(functionName: string, numLocals: number): void {
+    this.write(`// function ${functionName} ${numLocals}`);
+    
+    // Atualizamos o contexto para sabermos em que função estamos
+    this.currentFunctionName = functionName;
+    
+    // Escrevemos a label de entrada da função
+    this.write(`(${functionName})`);
+      // A CPU anota que o nome desta função corresponde à próxima linha da ROM.
+
+    // Inicializamos as variáveis locais com 0
+    // O loop vai repetir o bloco de código abaixo "numLocals" vezes.
+    for (let i = 0; i < numLocals; i++) {
+      // Exemplo para o 1º loop supondo SP (RAM[0]) = 300
+      this.write('@0');
+      // A = 0  |  M = RAM[0] = 300  |  D = ?
+      this.write('D=A');
+      // A = 0  |  M = RAM[0] = 300  |  D = 0
+      this.write('@SP');
+      // A = 0  |  M = RAM[0] = 300  |  D = 0
+      this.write('A=M');
+      // A = RAM[0] = 300  |  M = RAM[300] = ?  |  D = 0
+      this.write('M=D');
+      // A = 300  |  M = RAM[300] = 0 (Variável local zerada)  |  D = 0
+      this.write('@SP');
+      // A = 0  |  M = RAM[0] = 300  |  D = 0
+      this.write('M=M+1');
+      // A = 0  |  RAM[0] = RAM[0] + 1 = 301  |  D = 0
+    }
+  }
+
+  public writeReturn(): void {
+    this.write('// return');
+
+    // 1. FRAME = LCL (Guardamos o LCL atual no R14 como ponto de referência)
+    this.write('@LCL');
+    // A = 1  |  M = RAM[1] = 300  |  D = ?
+    this.write('D=M');
+    // A = 1  |  M = RAM[1] = 300  |  D = 300
+    this.write('@R14');
+    // A = 14 |  M = RAM[14] = 0   |  D = 300
+    this.write('M=D');       
+    // A = 14 |  M = RAM[14] = 300 (Nosso FRAME está salvo no R14)  |  D = 300
+
+    // 2. RET = *(FRAME - 5) (Guardamos o endereço de retorno no R15)
+    this.write('@5');
+    // A = 5  |  M = RAM[5] = ?    |  D = 300
+    this.write('D=D-A');     
+    // A = 5  |  D = 300 - 5 = 295 (Endereço onde está salvo para onde devemos voltar)
+    this.write('A=D');       
+    // A = 295|  M = RAM[295] = 400 (Linha da ROM de retorno)
+    this.write('D=M');       
+    // A = 295|  D = 400
+    this.write('@R15');
+    // A = 15 |  M = RAM[15] = 0
+    this.write('M=D');       
+    // A = 15 |  M = RAM[15] = 400 (Endereço de retorno salvo a salvo no R15!)
+
+    // 3. *ARG = pop() (Coloca o valor que a função retornou no argumento 0)
+    this.write('@SP');
+    // A = 0  |  M = RAM[0] = 306
+    this.write('AM=M-1');    
+    // A = 305|  RAM[0] = 305      |  M = RAM[305] = 42 (O valor retornado)
+    this.write('D=M');       
+    // A = 305|  D = 42
+    this.write('@ARG');
+    // A = 2  |  M = RAM[2] = 290
+    this.write('A=M');       
+    // A = 290|  M = RAM[290] = ? (Antigo valor do Arg 0)
+    this.write('M=D');       
+    // A = 290|  M = RAM[290] = 42 (Substituímos o Arg 0 pelo retorno da função)
+
+    // 4. SP = ARG + 1 (Reposiciona o ponteiro da pilha para quem chamou a função)
+    this.write('@ARG');
+    // A = 2  |  M = RAM[2] = 290
+    this.write('D=M+1');
+    // A = 2  |  D = 290 + 1 = 291
+    this.write('@SP');
+    // A = 0  |  M = RAM[0] = 305
+    this.write('M=D');
+    // A = 0  |  M = RAM[0] = 291 (Pilha restaurada!)
+
+    // 5. Restaurar THAT = *(FRAME - 1)
+    this.write('@R14');      
+    // A = 14 |  M = RAM[14] = 300
+    this.write('D=M');
+    // A = 14 |  D = 300
+    this.write('@1');
+    // A = 1  |  M = ?  |  D = 300
+    this.write('D=D-A');     
+    // A = 1  |  D = 300 - 1 = 299
+    this.write('A=D');
+    // A = 299|  M = RAM[299] = (Valor antigo do THAT)
+    this.write('D=M');       
+    // A = 299|  D = (Valor antigo do THAT)
+    this.write('@THAT');
+    // A = 4  |  M = RAM[4] = (Valor do THAT da função atual)
+    this.write('M=D');       
+    // A = 4  |  M = RAM[4] = (Valor antigo do THAT restaurado!)
+
+    // 6. Restaurar THIS = *(FRAME - 2)
+    this.write('@R14');
+    // A = 14 |  M = RAM[14] = 300  |  D = 300
+    this.write('D=M');
+    this.write('@2');
+    this.write('D=D-A');
+    // A = 2  |  D = 298
+    this.write('A=D');
+    // A = 298|  M = RAM[298] = (Valor antigo do THIS)
+    this.write('D=M');
+    this.write('@THIS');
+    // A = 3  |  M = RAM[3]
+    this.write('M=D');
+    // A = 3  |  M = RAM[3] = (Valor antigo do THIS restaurado!)
+
+    // 7. Restaurar ARG = *(FRAME - 3)
+    this.write('@R14');
+    this.write('D=M');
+    // A = 14 |  D = 300
+    this.write('@3');
+    this.write('D=D-A');
+    // A = 3  |  D = 297
+    this.write('A=D');
+    // A = 297|  M = RAM[297] = (Valor antigo do ARG)
+    this.write('D=M');
+    this.write('@ARG');
+    // A = 2  |  M = RAM[2] = 290
+    this.write('M=D');
+    // A = 2  |  M = RAM[2] = (Valor antigo do ARG restaurado, note que 290 foi apagado!)
+
+    // 8. Restaurar LCL = *(FRAME - 4)
+    this.write('@R14');
+    this.write('D=M');
+    // A = 14 |  D = 300
+    this.write('@4');
+    this.write('D=D-A');
+    // A = 4  |  D = 296
+    this.write('A=D');
+    // A = 296|  M = RAM[296] = (Valor antigo do LCL)
+    this.write('D=M');
+    this.write('@LCL');
+    // A = 1  |  M = RAM[1] = 300
+    this.write('M=D');
+    // A = 1  |  M = RAM[1] = (Valor antigo do LCL restaurado!)
+
+    // 9. goto RET (Finalmente, o salto de volta para o chamador!)
+    this.write('@R15');
+    // A = 15 |  M = RAM[15] = 400
+    this.write('A=M');       
+    // A = 400
+    this.write('0;JMP');     
+    // Pula para a linha 400 da ROM. A função acabou e o programa de quem a chamou retoma a execução perfeitamente!
+  }
 
   public close(): void {
     fs.closeSync(this.fileStream);

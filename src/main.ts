@@ -24,6 +24,10 @@ function main() {
             codeWriter.writePush(parser.arg1()?.trim() ?? '', parser.arg2());
         } else if (type === "C_POP") {
             codeWriter.writePop(parser.arg1()?.trim() ?? '', parser.arg2());
+        } else if (type === "C_FUNCTION") {
+            codeWriter.writeFunction(parser.arg1()?.trim() ?? '', parser.arg2());
+        } else if (type === "C_RETURN") {
+            codeWriter.writeReturn();
         }
     }
 
