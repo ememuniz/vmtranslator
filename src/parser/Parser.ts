@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 
-export type CommandType = 'C_ARITHMETIC' | 'C_PUSH' | 'C_POP';
+export type CommandType = 'C_ARITHMETIC' | 'C_PUSH' | 'C_POP' | 'C_LABEL' | 'C_GOTO' | 'C_IF' | 'C_FUNCTION' | 'C_RETURN' | 'C_CALL';
 
 export class Parser {
   private commands: string[] = [];                           
@@ -48,11 +48,22 @@ export class Parser {
     const firstToken = this.currentTokens[0];
     if (firstToken === 'push') return 'C_PUSH';
     if (firstToken === 'pop') return 'C_POP';
+    if (firstToken === 'label') return 'C_LABEL';
+    if (firstToken === 'goto') return 'C_GOTO';
+    if (firstToken === 'if-goto') return 'C_IF';
+    if (firstToken === 'function') return 'C_FUNCTION';
+    if (firstToken === 'return') return 'C_RETURN';
+    if (firstToken === 'call') return 'C_CALL';
+    
     return 'C_ARITHMETIC';
   }
             // Verifica o primeiro token do comando atual para determinar o tipo de comando.
   
   public arg1(): string | undefined {
+    // O return não tem argumentos!
+    if (this.commandType() === "C_RETURN") {
+        throw new Error("arg1 não deve ser chamado no comando C_RETURN");
+    }
     if (this.commandType() === "C_ARITHMETIC") {
       return this.currentTokens[0];
             // Se o comando for aritmético, significa que o primeiro token é o nome do comando, então ele é retornado diretamente.
@@ -64,7 +75,11 @@ export class Parser {
   }
 
   public arg2(): number{
-    return parseInt(this.currentTokens[2] ?? '', 10);
+    if ( this.commandType() === "C_PUSH" || this.commandType() === "C_POP" || this.commandType() === "C_FUNCTION" || this.commandType() === "C_CALL" ) {
+      return parseInt(this.currentTokens[2] ?? '', 10);
+    }
+    // Se tentar chamar arg2() num "goto" ou "add", o programa avisa o erro na hora!
+    throw new Error(`Erro de Sintaxe: arg2() não deve ser chamado para o comando do tipo ${this.commandType()}`);
   }
             // Se o comando for push ou pop, significa que o terceiro token é o argumento, então ele é retornado diretamente.
             // Exemplo: "push constant 7" , vai retornar o termo 7
