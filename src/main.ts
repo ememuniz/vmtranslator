@@ -28,6 +28,8 @@ function main() {
             codeWriter.writeFunction(parser.arg1()?.trim() ?? '', parser.arg2());
         } else if (type === "C_RETURN") {
             codeWriter.writeReturn();
+        } else if (type === "C_CALL") {
+            codeWriter.writeCall(parser.arg1()?.trim() ?? '', parser.arg2());
         }
     }
 

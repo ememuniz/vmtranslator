@@ -487,6 +487,145 @@ export class CodeWriter {
     // Pula para a linha 400 da ROM. A função acabou e o programa de quem a chamou retoma a execução perfeitamente!
   }
 
+  public writeCall(functionName: string, numArgs: number): void {
+    // RAM[0] (SP) = 260 |  RAM[1] (LCL) = 300  |  RAM[2] (ARG) = 250  |  RAM[3] (THIS) = 3000 |  RAM[4] (THAT) = 4000
+    this.write(`// call ${functionName} ${numArgs}`);
+    
+    const retAddrLabel = `RET_ADDRESS_${this.labelCounter}`;
+    this.labelCounter++;
+
+    
+    // 1. push return-address (Empilha a linha da ROM de retorno)
+    
+    this.write(`@${retAddrLabel}`);
+    // A = linha da ROM da label de retorno  |  D = ?
+    this.write('D=A');
+    // A = linha da ROM  |  D = linha da ROM de retorno (Vamos supor linha 999)
+    this.write('@SP');
+    // A = 0  |  M = RAM[0] = 260  |  D = 999
+    this.write('A=M');
+    // A = RAM[0] = 260  |  M = RAM[260] = ?  |  D = 999
+    this.write('M=D');
+    // A = 260  |  M = RAM[260] = 999 (Endereço salvo na pilha!)  |  D = 999
+    this.write('@SP');
+    // A = 0  |  M = RAM[0] = 260
+    this.write('M=M+1');
+    // A = 0  |  RAM[0] = RAM[0] + 1 = 261
+
+    
+    // 2. push LCL (Empilha o ponteiro LCL do chamador)
+    
+    this.write('@LCL');
+    // A = 1  |  M = RAM[1] = 300  |  D = ?
+    this.write('D=M');
+    // A = 1  |  M = RAM[1] = 300  |  D = 300
+    this.write('@SP');
+    // A = 0  |  M = RAM[0] = 261  |  D = 300
+    this.write('A=M');
+    // A = 261  |  M = RAM[261] = ?
+    this.write('M=D');
+    // A = 261  |  M = RAM[261] = 300 (LCL salvo!)
+    this.write('@SP');
+    this.write('M=M+1');
+    // A = 0  |  RAM[0] = 261 + 1 = 262
+
+    
+    // 3. push ARG (Empilha o ponteiro ARG do chamador)
+    
+    this.write('@ARG');
+    // A = 2  |  M = RAM[2] = 250  |  D = ?
+    this.write('D=M');
+    // A = 2  |  M = RAM[2] = 250  |  D = 250
+    this.write('@SP');
+    this.write('A=M');
+    // A = 262  |  M = RAM[262] = ?
+    this.write('M=D');
+    // A = 262  |  M = RAM[262] = 250 (ARG salvo!)
+    this.write('@SP');
+    this.write('M=M+1');
+    // A = 0  |  RAM[0] = 262 + 1 = 263
+
+    
+    // 4. push THIS (Empilha o ponteiro THIS do chamador)
+    
+    this.write('@THIS');
+    // A = 3  |  M = RAM[3] = 3000  |  D = ?
+    this.write('D=M');
+    // A = 3  |  D = 3000
+    this.write('@SP');
+    this.write('A=M');
+    // A = 263
+    this.write('M=D');
+    // A = 263  |  M = RAM[263] = 3000 (THIS salvo!)
+    this.write('@SP');
+    this.write('M=M+1');
+    // A = 0  |  RAM[0] = 263 + 1 = 264
+
+    
+    // 5. push THAT (Empilha o ponteiro THAT do chamador)
+    
+    this.write('@THAT');
+    // A = 4  |  M = RAM[4] = 4000  |  D = ?
+    this.write('D=M');
+    // A = 4  |  D = 4000
+    this.write('@SP');
+    this.write('A=M');
+    // A = 264
+    this.write('M=D');
+    // A = 264  |  M = RAM[264] = 4000 (THAT salvo!)
+    this.write('@SP');
+    this.write('M=M+1');
+    // A = 0  |  RAM[0] = 264 + 1 = 265
+    // FRAME COMPLETO SALVO NA PILHA! O SP AGORA É 265.
+
+    
+    // 6. ARG = SP - n - 5 (Reposiciona o ARG para a nova função)
+    
+    this.write('@SP');
+    // A = 0  |  M = RAM[0] = 265
+    this.write('D=M');
+    // D = 265 (SP Atual)
+    this.write(`@${numArgs}`);
+    // A = 2
+    this.write('D=D-A');
+    // D = 265 - 2 = 263
+    this.write('@5');
+    // A = 5
+    this.write('D=D-A');
+    // D = 263 - 5 = 258 (Exatamente onde o argumento 1 estava guardado!)
+    this.write('@ARG');
+    // A = 2
+    this.write('M=D');
+    // A = 2  |  M = RAM[2] = 258 (O ARG da nova função está configurado)
+
+    
+    // 7. LCL = SP (Reposiciona o LCL para a nova função)
+    
+    this.write('@SP');
+    // A = 0  |  M = RAM[0] = 265
+    this.write('D=M');
+    // D = 265
+    this.write('@LCL');
+    // A = 1
+    this.write('M=D');
+    // A = 1  |  M = RAM[1] = 265 (O LCL da nova função aponta para o topo livre)
+
+    
+    // 8. goto f (Transfere o controlo para a função chamada)
+    
+    this.write(`@${functionName}`);
+    // A = linha da ROM da função (ex: Math.multiply)
+    this.write('0;JMP');
+    // PC = A (Salta para a função!)
+
+    
+    // 9. (return-address) (Declara a label de aterragem após o retorno)
+    
+    this.write(`(${retAddrLabel})`);
+    // Quando a função Math.multiply fizer 'goto RET' no seu writeReturn, 
+    // a CPU aterra exatamente nesta linha e continua a execução normal!
+  }
+
   public close(): void {
     fs.closeSync(this.fileStream);
   }
